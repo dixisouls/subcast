@@ -20,7 +20,6 @@ env/
 # Environment / secrets
 .env
 .env.*
-!.env.example
 
 # Editors / OS
 .vscode/
