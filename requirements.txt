@@ -1,4 +1,7 @@
-claude-agent-sdk
-python-dotenv
-pyyaml
+# Core CLI has zero required dependencies (stdlib only), so it can ship
+# as a self-contained plugin bin/ script with no install step.
+#
+# mcp is optional: enables live MCP server tool discovery in
+# permission_reader.py. Without it, connected_mcp_tools is always empty
+# rather than the reader failing.
 mcp

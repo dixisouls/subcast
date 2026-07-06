@@ -9,17 +9,16 @@ description = "Subagent casting: dynamic, on-demand subagent generation for Clau
 readme = "README.md"
 requires-python = ">=3.10"
 license = { file = "LICENSE" }
-dependencies = [
-    "claude-agent-sdk",
-    "python-dotenv",
-    "pyyaml",
-    "mcp",
-]
+dependencies = []
 
 [project.optional-dependencies]
+mcp = [
+    "mcp",
+]
 dev = [
     "pytest",
     "ruff",
+    "mcp",
 ]
 
 [tool.setuptools.packages.find]
