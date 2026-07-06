@@ -18,10 +18,15 @@ import json
 import re
 from pathlib import Path
 
-from mcp import ClientSession, StdioServerParameters
-from mcp.client.stdio import stdio_client
-
 from subcast.specs import PermissionContext, SubagentSpec
+
+try:
+    from mcp import ClientSession, StdioServerParameters
+    from mcp.client.stdio import stdio_client
+
+    _MCP_AVAILABLE = True
+except ImportError:
+    _MCP_AVAILABLE = False
 
 BUILTIN_TOOLS = frozenset(
     {
@@ -174,6 +179,9 @@ async def _list_tools_for_server(name: str, config: dict, timeout: float) -> lis
 
 
 def discover_mcp_tools(server_configs: dict, timeout: float = 5.0) -> list[str]:
+    if not _MCP_AVAILABLE:
+        return []
+
     async def _discover_all() -> list[str]:
         tools: list[str] = []
         for name, config in server_configs.items():

@@ -12,9 +12,26 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-import yaml
-
 _VALID_DECISIONS = {"reuse_exact", "reuse_with_modification", "generate_new"}
+
+
+def _parse_flat_frontmatter(frontmatter_block: str) -> dict[str, str]:
+    """Parses simple `key: value` frontmatter lines.
+
+    Claude Code's own subagent frontmatter is always flat scalars, no
+    nesting or lists, so a real YAML parser is unnecessary; this keeps the
+    module stdlib-only so it can ship as a self-contained script with no
+    installs required. str.partition splits on the first colon only, so a
+    colon inside a value (e.g. a description containing "note: like this")
+    is preserved correctly.
+    """
+    result: dict[str, str] = {}
+    for line in frontmatter_block.strip().splitlines():
+        if not line.strip() or ":" not in line:
+            continue
+        key, _, value = line.partition(":")
+        result[key.strip()] = value.strip()
+    return result
 
 
 @dataclass
@@ -52,7 +69,7 @@ class SubagentSpec:
             raise ValueError("subagent markdown must start with a '---' frontmatter block")
 
         _, frontmatter_block, body = markdown.split("---", 2)
-        parsed = yaml.safe_load(frontmatter_block) or {}
+        parsed = _parse_flat_frontmatter(frontmatter_block)
 
         if "name" not in parsed or "description" not in parsed:
             raise ValueError("subagent frontmatter requires both 'name' and 'description'")
