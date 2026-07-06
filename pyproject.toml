@@ -13,6 +13,7 @@ dependencies = [
     "claude-agent-sdk",
     "python-dotenv",
     "pyyaml",
+    "mcp",
 ]
 
 [project.optional-dependencies]
