@@ -71,6 +71,16 @@ class SubagentSpec:
 
 
 @dataclass
+class PermissionContext:
+    allowed_tools: list[str]
+    denied_tools: list[str]
+    unmentioned_tools: list[str]
+    connected_mcp_tools: list[str]
+    existing_agents: list["SubagentSpec"]
+    permission_mode: str
+
+
+@dataclass
 class MatchVerdict:
     decision: str
     confidence: float
