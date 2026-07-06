@@ -1,0 +1,17 @@
+{
+  "name": "subcast",
+  "description": "Subagent casting: dynamically matches or generates project-scoped Claude Code subagents on demand, scoped within the project's existing permission boundaries.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Divya"
+  },
+  "homepage": "https://github.com/dixisouls/subcast",
+  "repository": "https://github.com/dixisouls/subcast",
+  "license": "MIT",
+  "keywords": [
+    "subagents",
+    "agents",
+    "meta-agent",
+    "automation"
+  ]
+}
