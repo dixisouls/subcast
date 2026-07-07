@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "subcast"
+version = "0.1.0"
+description = "Subagent casting: dynamic, on-demand subagent generation for Claude Code."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+dependencies = []
+
+[project.optional-dependencies]
+mcp = [
+    "mcp",
+]
+dev = [
+    "pytest",
+    "ruff",
+    "mcp",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

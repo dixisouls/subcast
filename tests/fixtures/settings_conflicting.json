@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": ["Read"],
+    "deny": ["Read"],
+    "defaultMode": "acceptEdits"
+  }
+}
