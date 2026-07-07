@@ -55,13 +55,14 @@ document it in `capability_gap` instead.
    agent file is valid and ready.
 
 7. Invoke `Agent(<agent-name>)` with the original task description to
-   actually execute it. If this is the very first agent ever written to
-   this project's `.claude/agents/` (the directory didn't exist yet when
-   this session started), the agent type may not be recognized yet — this
-   is a known Claude Code limitation, not a failure of this pipeline: the
-   directory watcher only picks up a directory that already existed at
-   session start. If `Agent(<agent-name>)` isn't available, fall back to
-   executing the task yourself directly (or via the `general-purpose`
-   agent) using the same instructions as the written subagent, and tell
-   the user the new agent will be usable via `Agent(<agent-name>)` from
-   their next session onward.
+   actually execute it. If this agent was just written during this same
+   session (whether or not `.claude/agents/` already existed), Claude
+   Code will not recognize the new agent type yet — confirmed by testing,
+   this holds regardless of elapsed time within the session, not just
+   immediately after writing. This is a known Claude Code limitation, not
+   a failure of this pipeline. If `Agent(<agent-name>)` errors with "Agent
+   type not found", fall back to executing the task yourself directly (or
+   via the `general-purpose` agent) using the same instructions as the
+   written subagent, and tell the user the new agent will be usable via
+   `Agent(<agent-name>)` from their next session (or after `claude
+   --resume`) onward.
