@@ -1,0 +1,21 @@
+{
+  "name": "subcast",
+  "owner": {
+    "name": "Divya"
+  },
+  "description": "SubCast: dynamic, on-demand subagent generation for Claude Code",
+  "plugins": [
+    {
+      "name": "subcast",
+      "source": "./",
+      "description": "Subagent casting: dynamically matches or generates project-scoped Claude Code subagents on demand, scoped within the project's existing permission boundaries.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Divya"
+      },
+      "homepage": "https://github.com/dixisouls/subcast",
+      "repository": "https://github.com/dixisouls/subcast",
+      "license": "MIT"
+    }
+  ]
+}
