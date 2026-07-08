@@ -49,9 +49,15 @@ using your own judgment — no tool call needed for this step. Decide one of:
 | "Write unit tests for `parser.py`, and also check test coverage %" | `python-test-writer`: "Writes and runs pytest unit tests for Python modules" (tools: Read, Write, Edit, Bash) | `reuse_with_modification` — same domain, just needs `pytest-cov` usage added to its process, no new tools required |
 | "Research competitor pricing pages" | `python-test-writer`: "Writes and runs pytest unit tests for Python modules" | `generate_new` — different domain entirely, no honest stretch applies |
 
-Optionally run `subcast-spawn-agent validate-verdict '<json>'` with your
-decision as `{"decision", "matched_agent_name", "confidence", "reasoning",
-"modification_notes"}` to double-check it's well-formed before proceeding.
+Optionally validate the verdict is well-formed before proceeding by piping
+it to stdin:
+
+```
+subcast-spawn-agent validate-verdict - <<'SUBCAST_EOF'
+{"decision": ..., "matched_agent_name": ..., "confidence": ...,
+ "reasoning": ..., "modification_notes": ...}
+SUBCAST_EOF
+```
 
 If `reuse_exact`: skip straight to Step 6 using that agent's name.
 
@@ -107,12 +113,28 @@ Before writing, run `subcast-spawn-agent requires-approval`.
   and get explicit confirmation before continuing.
 - If it prints `false`, continue directly.
 
-Then run `subcast-spawn-agent write '<json>'` with your designed subagent
-as `{"name", "description", "tools", "model", "permission_mode",
-"system_prompt_body", "capability_gap"}`. Add `--overwrite` only when
-`reuse_with_modification` is updating an existing agent of the same name.
-If this command fails (for example, a denied or unknown tool), fix the
-`tools` list and retry — do not continue until it succeeds.
+Then write the agent by piping the JSON to `subcast-spawn-agent write` on
+stdin (using `-` as the argument), which avoids shell-quoting problems with
+the multi-line `system_prompt_body`:
+
+```
+subcast-spawn-agent write - <<'SUBCAST_EOF'
+{"name": ..., "description": ..., "tools": [...], "model": ...,
+ "permission_mode": ..., "system_prompt_body": ..., "capability_gap": ...}
+SUBCAST_EOF
+```
+
+Notes on the fields:
+- `permission_mode` may not be more permissive than the project's own mode
+  from Step 1; leave it out (null) unless you have a specific reason.
+- Add `--overwrite` (before the `-`) only when `reuse_with_modification` is
+  updating an existing agent of the same name.
+- If the command fails (a denied/unknown tool, an invalid name, or a
+  permission-mode escalation), fix the offending field and retry — do not
+  continue until it succeeds.
+- If the command prints a `capability gap:` line on stderr, **relay that gap
+  to the user** — it means the agent was written but couldn't fully cover
+  the task with the available tools.
 
 ## Step 6: Resolve handoff
 

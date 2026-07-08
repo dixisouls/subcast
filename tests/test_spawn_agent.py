@@ -127,3 +127,43 @@ def test_resolve_handoff_exits_nonzero_for_missing_agent(tmp_path, capsys):
 
     assert exit_code != 0
     assert capsys.readouterr().err != ""
+
+
+def test_write_surfaces_capability_gap_on_stderr(tmp_path, capsys):
+    spec_json = json.dumps(
+        {
+            "name": "gap-agent",
+            "description": "Has a capability gap",
+            "tools": ["Read"],
+            "system_prompt_body": "You do your best.",
+            "capability_gap": "Needs a screenshot tool that isn't available.",
+        }
+    )
+
+    exit_code = main(["--project-root", str(tmp_path), "write", spec_json])
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    # stdout stays the clean path; the gap is surfaced on stderr so the
+    # calling session can relay it to the user.
+    assert captured.out.strip().endswith("gap-agent.md")
+    assert "screenshot tool" in captured.err
+
+
+def test_write_reads_spec_from_stdin_when_dash(tmp_path, capsys, monkeypatch):
+    import io
+
+    spec_json = json.dumps(
+        {
+            "name": "stdin-agent",
+            "description": "Written via stdin",
+            "tools": ["Read"],
+            "system_prompt_body": "You were piped in.",
+        }
+    )
+    monkeypatch.setattr("sys.stdin", io.StringIO(spec_json))
+
+    exit_code = main(["--project-root", str(tmp_path), "write", "-"])
+
+    assert exit_code == 0
+    assert (tmp_path / ".claude" / "agents" / "stdin-agent.md").exists()

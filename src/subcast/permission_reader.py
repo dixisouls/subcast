@@ -78,11 +78,20 @@ BUILTIN_TOOLS = frozenset(
 _MCP_SERVER_WILDCARD_ALLOW = re.compile(r"^mcp__[^*]+__\*$")
 
 
-def read_settings(project_root: str | Path) -> dict:
-    settings_path = Path(project_root) / ".claude" / "settings.json"
-    if not settings_path.exists():
+def _load_json_or_empty(path: Path) -> dict:
+    """Reads and parses a JSON file, degrading to {} if it's missing or
+    malformed rather than crashing the whole pipeline on a broken file."""
+    if not path.exists():
         return {}
-    return json.loads(settings_path.read_text())
+    try:
+        data = json.loads(path.read_text())
+    except (json.JSONDecodeError, OSError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def read_settings(project_root: str | Path) -> dict:
+    return _load_json_or_empty(Path(project_root) / ".claude" / "settings.json")
 
 
 def _split_rule(rule: str) -> tuple[str, str | None]:
@@ -159,10 +168,48 @@ def scan_existing_agents(project_root: str | Path) -> list[SubagentSpec]:
 
 
 def read_mcp_server_configs(project_root: str | Path) -> dict:
-    mcp_json_path = Path(project_root) / ".mcp.json"
-    if not mcp_json_path.exists():
-        return {}
-    return json.loads(mcp_json_path.read_text()).get("mcpServers", {})
+    data = _load_json_or_empty(Path(project_root) / ".mcp.json")
+    servers = data.get("mcpServers", {})
+
+    # Object form: {"name": {config}}. Array form: [{"name": ..., config}].
+    if isinstance(servers, list):
+        normalized = {}
+        for entry in servers:
+            if isinstance(entry, dict) and "name" in entry:
+                name = entry["name"]
+                normalized[name] = {k: v for k, v in entry.items() if k != "name"}
+        return normalized
+    if isinstance(servers, dict):
+        return servers
+    return {}
+
+
+def filter_approved_mcp_servers(project_root: str | Path, server_configs: dict) -> dict:
+    """Returns only the MCP servers the user has explicitly approved for this
+    project, read from the git-untracked .claude/settings.local.json.
+
+    This gates the auto-spawn in build_permission_context: a freshly-cloned
+    untrusted repo has no local settings approving its servers, so its
+    .mcp.json commands are never executed. Approvals committed to
+    .claude/settings.json are deliberately ignored — a malicious repo could
+    ship that file, so it must not be able to self-approve. This mirrors
+    Claude Code's own rule that committed approvals don't count in an
+    untrusted folder.
+    """
+    local_settings = _load_json_or_empty(
+        Path(project_root) / ".claude" / "settings.local.json"
+    )
+    disabled = set(local_settings.get("disabledMcpjsonServers", []))
+    enabled = set(local_settings.get("enabledMcpjsonServers", []))
+    enable_all = local_settings.get("enableAllProjectMcpServers", False) is True
+
+    approved = {}
+    for name, config in server_configs.items():
+        if name in disabled:
+            continue
+        if enable_all or name in enabled:
+            approved[name] = config
+    return approved
 
 
 async def _list_tools_for_server(name: str, config: dict, timeout: float) -> list[str]:
@@ -202,7 +249,8 @@ def build_permission_context(project_root: str | Path) -> PermissionContext:
     settings = read_settings(project_root)
     existing_agents = scan_existing_agents(project_root)
     server_configs = read_mcp_server_configs(project_root)
-    connected_mcp_tools = discover_mcp_tools(server_configs) if server_configs else []
+    approved_servers = filter_approved_mcp_servers(project_root, server_configs)
+    connected_mcp_tools = discover_mcp_tools(approved_servers) if approved_servers else []
 
     known_tools = set(BUILTIN_TOOLS) | set(connected_mcp_tools)
     context = parse_permissions(settings, known_tools)

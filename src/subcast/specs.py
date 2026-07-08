@@ -10,9 +10,52 @@ itself writes subagent files.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 _VALID_DECISIONS = {"reuse_exact", "reuse_with_modification", "generate_new"}
+
+# Claude Code's own rule: agent names are lowercase letters, digits, and
+# hyphens (no leading/trailing hyphen). Enforcing this also closes a path
+# traversal hole, since `name` is used to build the output file path.
+_AGENT_NAME_RE = re.compile(r"^[a-z0-9]([a-z0-9-]*[a-z0-9])?$")
+
+# Permission modes ranked by how permissive they are. A generated agent must
+# never set a mode more permissive than the project's own — otherwise a
+# subagent could run with fewer prompts than the project ever authorized.
+# dontAsk auto-denies unless pre-approved, so it is treated as restrictive
+# (rank 0) rather than an escalation.
+_PERMISSION_MODE_RANK = {
+    "plan": 0,
+    "dontAsk": 0,
+    "default": 1,
+    "manual": 1,  # alias for default
+    "acceptEdits": 2,
+    "auto": 3,
+    "bypassPermissions": 4,
+}
+
+
+def is_valid_agent_name(name: str) -> bool:
+    """True if `name` is a safe Claude Code agent name (lowercase, digits,
+    hyphens, no path separators or traversal sequences)."""
+    return bool(_AGENT_NAME_RE.match(name))
+
+
+def is_permission_mode_allowed(candidate: str | None, project_mode: str) -> bool:
+    """True if a generated agent may carry permission mode `candidate` in a
+    project whose own mode is `project_mode`.
+
+    None (inherit / unset) is always allowed. A known mode is allowed only if
+    it is no more permissive than the project's mode. Unknown modes are
+    rejected outright.
+    """
+    if candidate is None:
+        return True
+    if candidate not in _PERMISSION_MODE_RANK:
+        return False
+    project_rank = _PERMISSION_MODE_RANK.get(project_mode, 1)
+    return _PERMISSION_MODE_RANK[candidate] <= project_rank
 
 
 def _parse_flat_frontmatter(frontmatter_block: str) -> dict[str, str]:
@@ -65,6 +108,9 @@ class SubagentSpec:
 
     @classmethod
     def from_markdown(cls, markdown: str) -> "SubagentSpec":
+        # Normalize CRLF so files saved with Windows line endings parse the
+        # same as Unix ones.
+        markdown = markdown.replace("\r\n", "\n")
         if not markdown.startswith("---\n"):
             raise ValueError("subagent markdown must start with a '---' frontmatter block")
 

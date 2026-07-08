@@ -29,9 +29,18 @@ def _cmd_context(args: argparse.Namespace) -> int:
     return 0
 
 
+def _read_json_arg(value: str) -> str:
+    """Returns the JSON payload for a subcommand. A value of "-" (or empty)
+    means read it from stdin instead of the command line, which avoids
+    exposing the payload in the process list and sidesteps shell quoting."""
+    if value in ("", "-"):
+        return sys.stdin.read()
+    return value
+
+
 def _cmd_validate_verdict(args: argparse.Namespace) -> int:
     try:
-        verdict = parse_match_verdict(args.verdict_json)
+        verdict = parse_match_verdict(_read_json_arg(args.verdict_json))
     except ValueError as exc:
         print(str(exc), file=sys.stderr)
         return 1
@@ -42,7 +51,7 @@ def _cmd_validate_verdict(args: argparse.Namespace) -> int:
 def _cmd_write(args: argparse.Namespace) -> int:
     context = build_permission_context(args.project_root)
     try:
-        spec = parse_designed_subagent(args.spec_json, context)
+        spec = parse_designed_subagent(_read_json_arg(args.spec_json), context)
     except ValueError as exc:
         print(str(exc), file=sys.stderr)
         return 1
@@ -52,6 +61,12 @@ def _cmd_write(args: argparse.Namespace) -> int:
     except ValueError as exc:
         print(str(exc), file=sys.stderr)
         return 1
+
+    # Surface a documented capability gap so the calling session can relay it
+    # to the user. stdout stays the clean path (scripts read it); the gap goes
+    # to stderr.
+    if spec.capability_gap:
+        print(f"capability gap: {spec.capability_gap}", file=sys.stderr)
 
     print(str(path))
     return 0
@@ -81,11 +96,11 @@ def _build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser("context").set_defaults(func=_cmd_context)
 
     validate_verdict = subparsers.add_parser("validate-verdict")
-    validate_verdict.add_argument("verdict_json")
+    validate_verdict.add_argument("verdict_json", nargs="?", default="-")
     validate_verdict.set_defaults(func=_cmd_validate_verdict)
 
     write = subparsers.add_parser("write")
-    write.add_argument("spec_json")
+    write.add_argument("spec_json", nargs="?", default="-")
     write.add_argument("--overwrite", action="store_true")
     write.set_defaults(func=_cmd_write)
 
