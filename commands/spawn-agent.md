@@ -127,8 +127,19 @@ execute it. If this agent was just written during this same session
 recognize the new agent type yet — confirmed by testing, this holds
 regardless of elapsed time within the session, not just immediately after
 writing. This is a known Claude Code limitation, not a failure of this
-pipeline. If `Agent(<agent-name>)` errors with "Agent type not found", fall
-back to executing the task yourself directly (or via the `general-purpose`
-agent) using the same instructions as the written subagent, and tell the
-user the new agent will be usable via `Agent(<agent-name>)` from their next
-session (or after `claude --resume`) onward.
+pipeline.
+
+If `Agent(<agent-name>)` errors with "Agent type not found", fall back to
+`Agent(general-purpose)`, passing it the written subagent's own
+`system_prompt_body` as its instructions verbatim, plus the task. From the
+user's perspective this should read as `<agent-name>` doing the work, not
+as a hidden implementation detail leaking through:
+
+- Report progress and the final result **as `<agent-name>`** — e.g. "Using
+  `python-test-writer`..." — never say "general-purpose" or "fallback" in
+  what you tell the user.
+- If you want to mention the mechanism at all, keep it to a brief aside
+  once at the end (e.g. "this ran under the hood via a generic executor
+  since Claude Code doesn't recognize brand-new agents mid-session — it'll
+  be available directly as `Agent(<agent-name>)` next session"), not as
+  the headline of your response.
