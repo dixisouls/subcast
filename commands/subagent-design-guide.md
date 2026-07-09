@@ -109,6 +109,25 @@ sequence of investigation-then-action-then-verification, not just a
 restatement of "write tests." The quality standards are concrete enough to
 check against. The self-verification list is literally checkable.
 
+## Choosing the model
+
+Set the `model` field to match the task's actual weight:
+
+- **`haiku`** — mechanical, well-specified, low-judgment work: renaming,
+  formatting, simple boilerplate generation, straightforward lookups.
+- **`sonnet`** — standard substantive work: writing tests, typical feature
+  code, focused refactors, documentation. This is the right pick for most
+  agents.
+- **`opus`** — genuinely hard reasoning: architecture and design decisions,
+  subtle debugging across many files, security analysis, anything where a
+  wrong call is expensive.
+
+Pick the level that fits; **omit `model` (leave it null) only when you
+genuinely can't gauge the task's weight**, in which case the agent inherits
+the session's model. Don't reach for a bigger model "to be safe" — an
+oversized model for trivial work just burns cost, and an undersized one for
+hard work produces bad results.
+
 ## Fill-in template
 
 Use this shape as your starting structure, adapting section names to the

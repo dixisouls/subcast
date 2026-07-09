@@ -1,26 +1,10 @@
 # SubCast
 
-**Subagent casting** — dynamic, on-demand subagent generation for Claude Code.
-
-## What it is
-
-SubCast is a Claude Code plugin. Given a task via `/subcast:spawn-agent
-"task description"`, it:
-
-1. Checks the current project's existing subagents (`.claude/agents/`) for
-   a good enough match.
-2. If none exists, designs a new subagent scoped strictly within the
-   project's existing permission boundaries.
-3. Shows the generated agent for approval if the project's permission mode
-   calls for that.
-4. Writes the approved agent to `.claude/agents/`.
-5. Hands off execution to Claude Code's native `Agent` tool.
-
-The differentiator from the many existing "prewritten agent library"
-projects: nothing here is pre-authored. SubCast decides what specialist is
-needed at the moment of need, and reuses or extends what already exists in
-the project rather than duplicating it. See
-[`docs/DEMO.md`](./docs/DEMO.md) for a real, unedited before-and-after run.
+**Subagent casting.** SubCast is a Claude Code plugin that spawns the right
+subagent for the task in front of you — matching one that already exists in
+your project, adapting it, or designing a brand new one on the spot. Nothing
+is pre-authored. Your `.claude/agents/` folder grows exactly as your project
+needs it to, instead of shipping with sixty agents you'll never use.
 
 ## Install
 
@@ -29,77 +13,68 @@ the project rather than duplicating it. See
 /plugin install subcast@subcast
 ```
 
-No pip, no pipx, no separate CLI install — the plugin's `bin/` script is
-added to the Bash tool's `PATH` automatically while it's enabled. To try it
-without installing, point Claude Code at a local checkout instead:
+That's it — no pip, no pipx, nothing else to set up. Want to try it first
+without installing?
 
 ```
 claude --plugin-dir /path/to/subcast
 ```
 
-## Core behavior
+## Quickstart
 
-- Invocation is explicit and user-triggered (`disable-model-invocation:
-  true`) — Claude never runs this on its own judgment.
-- The reuse-vs-generate judgment and the subagent design itself are made by
-  the *calling* Claude Code session's own reasoning, not a separate,
-  separately-authenticated LLM call. No `ANTHROPIC_API_KEY` is needed for
-  any of this — see [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
-- **Tool-naming rule:** a denied tool is never even shown as an option to
-  the calling session, and a second, independent validation pass rejects
-  any generated agent that uses a denied or unknown tool name outright. See
-  [`docs/PERMISSION_MODEL.md`](./docs/PERMISSION_MODEL.md) for the full
-  allowed/denied/unmentioned model, including the full-match-vs-scoped
-  distinction that keeps this from being overly conservative.
-- If a task needs a capability with no matching tool, SubCast reports a
-  capability gap rather than inventing a tool name that doesn't exist.
-- A third option, `reuse_with_modification`, lets SubCast lightly adjust an
-  existing agent's tools or prompt for the task at hand, instead of a
-  strict reuse-or-generate binary.
-- Reuse candidates are scoped to the current project's `.claude/agents/`
-  only; user-scope `~/.claude/agents/` is out of scope.
-- Approval before a newly generated agent's first run inherits Claude
-  Code's own permission mode directly rather than introducing a separate
-  setting.
-- Generated agents follow a structured recipe (role, responsibilities,
-  numbered process, output expectations, quality standards,
-  self-verification), not generic one-liners — see
-  [`commands/subagent-design-guide.md`](./commands/subagent-design-guide.md).
+```
+/subcast:spawn-agent write unit tests for calculator.py
+```
+
+First time, SubCast finds nothing to reuse, so it designs a focused
+`python-test-writer` agent — scoped to only the tools your project
+actually allows — and gets the tests written.
+
+Ask for something similar later:
+
+```
+/subcast:spawn-agent write unit tests for stringutils.py
+```
+
+Same agent, reused automatically. No duplicate, no new file — SubCast
+recognized the fit and handed the task straight to what already exists.
+
+See [`docs/DEMO.md`](./docs/DEMO.md) for the real, unedited transcript of
+exactly this.
+
+## How it works
+
+You describe a task with `/subcast:spawn-agent`. SubCast reads your
+project's existing subagents and checks whether one already fits — not by
+keyword matching, but by actually judging whether the task belongs to what
+that agent already does.
+
+If something's close but not quite right, SubCast adjusts it — a tool
+added, a case folded into its process — instead of leaving you to hand-edit
+it or spawning a near-duplicate. If nothing fits at all, it designs a new
+subagent from scratch: a real, detailed system prompt (role, process,
+quality bar, self-checks — not a generic one-liner), using only tools your
+project has actually allowed. If your project's permission settings call
+for it, you'll see the full definition and confirm before anything gets
+written. Either way, the task runs immediately, and the agent is there
+waiting the next time you need something like it.
+
+Curious how the pieces fit together? [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)
+walks through the pipeline, and [`docs/PERMISSION_MODEL.md`](./docs/PERMISSION_MODEL.md)
+covers exactly how SubCast decides what a generated agent is and isn't
+allowed to touch.
 
 ## Status
 
-Feature-complete through the full pipeline, packaged and installable as a
-real Claude Code plugin, verified end to end against real scratch projects.
-See [`build-spec.md`](./build-spec.md) (local, not committed to this repo)
-for the full build history if you have it, or the git log for the actual
-history.
-
-## Repository structure
-
-```
-subcast/
-├── .claude-plugin/
-│   ├── plugin.json        # plugin manifest
-│   └── marketplace.json   # self-hosted single-plugin marketplace
-├── bin/
-│   └── subcast-spawn-agent  # self-contained entry point, added to PATH while the plugin is enabled
-├── commands/
-│   ├── spawn-agent.md              # the /subcast:spawn-agent command
-│   └── subagent-design-guide.md    # recipe for generated agents' system prompts
-├── src/
-│   ├── subcast/            # specs, permission reader, matcher, designer, writer, approval, handoff
-│   └── cli/                # CLI entry point bin/ delegates to
-├── tests/
-└── docs/                   # ARCHITECTURE.md, PERMISSION_MODEL.md, DEMO.md
-```
+`v1.1.0` — full pipeline shipped, packaged as a real plugin, verified end
+to end against real projects. Adds agent list/prune with provenance
+tracking, and hardened permission handling.
 
 ## Requirements
 
-SubCast runs inside a project already using [Claude
-Code](https://claude.com/product/claude-code), and reads that project's
-`.claude/settings.json` and `.claude/agents/` conventions directly. It is
-an independent, unaffiliated project built to work with Claude Code's
-existing extension points — it is not endorsed by or affiliated with
+A project already using [Claude Code](https://claude.com/product/claude-code).
+SubCast reads that project's `.claude/settings.json` and `.claude/agents/`
+directly and is an independent project, not affiliated with or endorsed by
 Anthropic.
 
 ## License

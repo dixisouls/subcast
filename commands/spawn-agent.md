@@ -49,9 +49,15 @@ using your own judgment — no tool call needed for this step. Decide one of:
 | "Write unit tests for `parser.py`, and also check test coverage %" | `python-test-writer`: "Writes and runs pytest unit tests for Python modules" (tools: Read, Write, Edit, Bash) | `reuse_with_modification` — same domain, just needs `pytest-cov` usage added to its process, no new tools required |
 | "Research competitor pricing pages" | `python-test-writer`: "Writes and runs pytest unit tests for Python modules" | `generate_new` — different domain entirely, no honest stretch applies |
 
-Optionally run `subcast-spawn-agent validate-verdict '<json>'` with your
-decision as `{"decision", "matched_agent_name", "confidence", "reasoning",
-"modification_notes"}` to double-check it's well-formed before proceeding.
+Optionally validate the verdict is well-formed before proceeding by piping
+it to stdin:
+
+```
+subcast-spawn-agent validate-verdict - <<'SUBCAST_EOF'
+{"decision": ..., "matched_agent_name": ..., "confidence": ...,
+ "reasoning": ..., "modification_notes": ...}
+SUBCAST_EOF
+```
 
 If `reuse_exact`: skip straight to Step 6 using that agent's name.
 
@@ -107,12 +113,28 @@ Before writing, run `subcast-spawn-agent requires-approval`.
   and get explicit confirmation before continuing.
 - If it prints `false`, continue directly.
 
-Then run `subcast-spawn-agent write '<json>'` with your designed subagent
-as `{"name", "description", "tools", "model", "permission_mode",
-"system_prompt_body", "capability_gap"}`. Add `--overwrite` only when
-`reuse_with_modification` is updating an existing agent of the same name.
-If this command fails (for example, a denied or unknown tool), fix the
-`tools` list and retry — do not continue until it succeeds.
+Then write the agent by piping the JSON to `subcast-spawn-agent write` on
+stdin (using `-` as the argument), which avoids shell-quoting problems with
+the multi-line `system_prompt_body`:
+
+```
+subcast-spawn-agent write - <<'SUBCAST_EOF'
+{"name": ..., "description": ..., "tools": [...], "model": ...,
+ "permission_mode": ..., "system_prompt_body": ..., "capability_gap": ...}
+SUBCAST_EOF
+```
+
+Notes on the fields:
+- `permission_mode` may not be more permissive than the project's own mode
+  from Step 1; leave it out (null) unless you have a specific reason.
+- Add `--overwrite` (before the `-`) only when `reuse_with_modification` is
+  updating an existing agent of the same name.
+- If the command fails (a denied/unknown tool, an invalid name, or a
+  permission-mode escalation), fix the offending field and retry — do not
+  continue until it succeeds.
+- If the command prints a `capability gap:` line on stderr, **relay that gap
+  to the user** — it means the agent was written but couldn't fully cover
+  the task with the available tools.
 
 ## Step 6: Resolve handoff
 
@@ -127,8 +149,19 @@ execute it. If this agent was just written during this same session
 recognize the new agent type yet — confirmed by testing, this holds
 regardless of elapsed time within the session, not just immediately after
 writing. This is a known Claude Code limitation, not a failure of this
-pipeline. If `Agent(<agent-name>)` errors with "Agent type not found", fall
-back to executing the task yourself directly (or via the `general-purpose`
-agent) using the same instructions as the written subagent, and tell the
-user the new agent will be usable via `Agent(<agent-name>)` from their next
-session (or after `claude --resume`) onward.
+pipeline.
+
+If `Agent(<agent-name>)` errors with "Agent type not found", fall back to
+`Agent(general-purpose)`, passing it the written subagent's own
+`system_prompt_body` as its instructions verbatim, plus the task. From the
+user's perspective this should read as `<agent-name>` doing the work, not
+as a hidden implementation detail leaking through:
+
+- Report progress and the final result **as `<agent-name>`** — e.g. "Using
+  `python-test-writer`..." — never say "general-purpose" or "fallback" in
+  what you tell the user.
+- If you want to mention the mechanism at all, keep it to a brief aside
+  once at the end (e.g. "this ran under the hood via a generic executor
+  since Claude Code doesn't recognize brand-new agents mid-session — it'll
+  be available directly as `Agent(<agent-name>)` next session"), not as
+  the headline of your response.

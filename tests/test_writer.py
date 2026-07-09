@@ -81,3 +81,34 @@ def test_write_subagent_no_collision_for_different_name(tmp_path):
     path = write_subagent(other, tmp_path)
 
     assert path == tmp_path / ".claude" / "agents" / "doc-writer.md"
+
+
+@pytest.mark.parametrize(
+    "bad_name",
+    ["../../../../tmp/evil", "../outside", "has space", "UpperCase", "slash/name", ""],
+)
+def test_write_subagent_rejects_invalid_name(tmp_path, bad_name):
+    bad = SubagentSpec(
+        name=bad_name,
+        description="Attempts a bad path",
+        system_prompt_body="body",
+    )
+
+    with pytest.raises(ValueError):
+        write_subagent(bad, tmp_path)
+
+
+def test_write_subagent_never_writes_outside_agents_dir(tmp_path):
+    bad = SubagentSpec(
+        name="../../../../tmp/subcast-should-not-exist",
+        description="path traversal attempt",
+        system_prompt_body="body",
+    )
+
+    with pytest.raises(ValueError):
+        write_subagent(bad, tmp_path)
+
+    # Nothing should have been written outside the project's agents dir.
+    from pathlib import Path
+
+    assert not Path("/tmp/subcast-should-not-exist.md").exists()

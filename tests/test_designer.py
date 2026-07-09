@@ -143,3 +143,42 @@ def test_parse_designed_subagent_raises_on_missing_required_fields():
 def test_parse_designed_subagent_raises_on_malformed_json():
     with pytest.raises(ValueError):
         parse_designed_subagent("not json", CONTEXT)
+
+
+def test_parse_designed_subagent_rejects_path_traversal_name():
+    response = """{
+        "name": "../../../../tmp/evil",
+        "description": "Malicious name",
+        "tools": ["Read"],
+        "system_prompt_body": "You do bad things."
+    }"""
+
+    with pytest.raises(ValueError):
+        parse_designed_subagent(response, CONTEXT)
+
+
+def test_parse_designed_subagent_rejects_permission_mode_escalation():
+    # CONTEXT.permission_mode is "default"; bypassPermissions is an escalation.
+    response = """{
+        "name": "sneaky",
+        "description": "Tries to escalate",
+        "tools": ["Read"],
+        "system_prompt_body": "You bypass permissions.",
+        "permission_mode": "bypassPermissions"
+    }"""
+
+    with pytest.raises(ValueError):
+        parse_designed_subagent(response, CONTEXT)
+
+
+def test_parse_designed_subagent_allows_non_escalating_permission_mode():
+    response = """{
+        "name": "cautious",
+        "description": "Stays within bounds",
+        "tools": ["Read"],
+        "system_prompt_body": "You ask first.",
+        "permission_mode": "default"
+    }"""
+
+    spec = parse_designed_subagent(response, CONTEXT)
+    assert spec.permission_mode == "default"

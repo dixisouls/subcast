@@ -16,7 +16,13 @@ from __future__ import annotations
 import json
 import re
 
-from subcast.specs import PermissionContext, SubagentSpec, TaskSpec
+from subcast.specs import (
+    PermissionContext,
+    SubagentSpec,
+    TaskSpec,
+    is_permission_mode_allowed,
+    is_valid_agent_name,
+)
 
 _JSON_FENCE_RE = re.compile(r"```(?:json)?\s*(\{.*?\})\s*```", re.DOTALL)
 
@@ -61,6 +67,22 @@ def parse_designed_subagent(response_text: str, context: PermissionContext) -> S
     if missing:
         raise ValueError(f"designer response missing required fields: {sorted(missing)}")
 
+    name = payload["name"]
+    if not is_valid_agent_name(name):
+        raise ValueError(
+            f"invalid agent name {name!r}: must be lowercase letters, digits, and "
+            "hyphens only (no path separators or traversal sequences)"
+        )
+
+    permission_mode = payload.get("permission_mode")
+    if not is_permission_mode_allowed(permission_mode, context.permission_mode):
+        raise ValueError(
+            f"permission_mode {permission_mode!r} is not allowed: it is either "
+            f"unknown or more permissive than the project's own mode "
+            f"({context.permission_mode!r}). A generated agent may not escalate "
+            "beyond the project's permission posture."
+        )
+
     tools = payload.get("tools") or []
     valid_tools = set(context.allowed_tools) | set(context.unmentioned_tools)
     invalid_tools = [t for t in tools if t not in valid_tools]
@@ -70,11 +92,11 @@ def parse_designed_subagent(response_text: str, context: PermissionContext) -> S
         )
 
     return SubagentSpec(
-        name=payload["name"],
+        name=name,
         description=payload["description"],
         system_prompt_body=payload["system_prompt_body"],
         tools=tools or None,
         model=payload.get("model"),
-        permission_mode=payload.get("permission_mode"),
+        permission_mode=permission_mode,
         capability_gap=payload.get("capability_gap"),
     )
