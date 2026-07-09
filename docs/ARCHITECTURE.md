@@ -105,6 +105,41 @@ every tool name in the parsed `SubagentSpec` must appear in
 `allowed_tools ∪ unmentioned_tools`, or the whole generation is rejected
 with the offending names listed — never silently dropped.
 
+## The validation layer
+
+`parse_designed_subagent` is the single chokepoint where the calling
+session's output is turned into something that touches disk, so it enforces
+every safety rule at once before returning a `SubagentSpec`:
+
+- tool names must be in `allowed_tools ∪ unmentioned_tools` (above);
+- the agent `name` must be a plain Claude Code name, no path traversal;
+- the `permission_mode` may not be more permissive than the project's own.
+
+The writer re-checks the name and asserts path containment as defense in
+depth. See [`PERMISSION_MODEL.md`](./PERMISSION_MODEL.md) for the details of
+each rule.
+
+## Provenance manifest and agent management
+
+SubCast records the agents it creates in a small self-healing manifest at
+`.claude/subcast/agents.json` (`subcast.manifest`). This exists so the
+management commands can tell SubCast-generated agents apart from
+hand-authored ones — the agent files themselves stay pristine Claude Code
+frontmatter, with provenance kept only in the manifest.
+
+- `subcast-spawn-agent list` (`/subcast:list-agents`) reports every project
+  agent with a `created_by_subcast` flag.
+- `subcast-spawn-agent remove <name>` (`/subcast:prune-agent`) deletes an
+  agent and cleans its manifest entry, but refuses a name SubCast didn't
+  create unless `--force`, so pruning can't delete a human's agent by
+  accident.
+
+The manifest reconciles on every mutation: any entry whose agent file no
+longer exists is dropped, so manually deleting an agent never leaves the
+manifest lying. Provenance is recorded only on genuine creation — never
+when `reuse_with_modification` overwrites a file SubCast didn't originally
+write.
+
 ## Distribution: a self-contained plugin
 
 SubCast ships as a Claude Code plugin (`.claude-plugin/plugin.json`), with

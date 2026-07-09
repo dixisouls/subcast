@@ -64,6 +64,19 @@ walks through the pipeline, and [`docs/PERMISSION_MODEL.md`](./docs/PERMISSION_M
 covers exactly how SubCast decides what a generated agent is and isn't
 allowed to touch.
 
+## Managing agents
+
+As your `.claude/agents/` grows, two commands help you keep track:
+
+```
+/subcast:list-agents      # every agent, flagged by whether SubCast made it
+/subcast:prune-agent <name>   # delete an agent SubCast created
+```
+
+SubCast tracks which agents it generated (in `.claude/subcast/agents.json`),
+so `prune` refuses to delete an agent you wrote by hand unless you pass
+`--force`. Your own agents are never touched by accident.
+
 ## Status
 
 `v1.1.0` — full pipeline shipped, packaged as a real plugin, verified end
