@@ -7,7 +7,69 @@ silently fails to load correctly.
 
 import pytest
 
-from subcast.specs import MatchVerdict, SubagentSpec, TaskSpec
+from subcast.specs import (
+    MatchVerdict,
+    SubagentSpec,
+    TaskSpec,
+    is_permission_mode_allowed,
+    is_valid_agent_name,
+)
+
+
+@pytest.mark.parametrize("name", ["code-reviewer", "test-writer", "a", "agent1", "x-y-z"])
+def test_is_valid_agent_name_accepts_lowercase_hyphenated(name):
+    assert is_valid_agent_name(name) is True
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "../evil",
+        "../../etc/passwd",
+        "has space",
+        "UpperCase",
+        "trailing-",
+        "-leading",
+        "under_score",
+        "dot.name",
+        "",
+        "slash/name",
+    ],
+)
+def test_is_valid_agent_name_rejects_invalid(name):
+    assert is_valid_agent_name(name) is False
+
+
+def test_permission_mode_allows_same_or_less_permissive():
+    # A project in acceptEdits may produce an agent in default (less permissive)
+    assert is_permission_mode_allowed("default", project_mode="acceptEdits") is True
+    assert is_permission_mode_allowed("acceptEdits", project_mode="acceptEdits") is True
+
+
+def test_permission_mode_rejects_escalation_beyond_project():
+    # A default project must not mint a bypassPermissions agent
+    assert is_permission_mode_allowed("bypassPermissions", project_mode="default") is False
+    assert is_permission_mode_allowed("acceptEdits", project_mode="default") is False
+
+
+def test_permission_mode_allows_bypass_only_when_project_already_bypasses():
+    assert is_permission_mode_allowed("bypassPermissions", project_mode="bypassPermissions") is True
+
+
+def test_permission_mode_rejects_unknown_value():
+    assert is_permission_mode_allowed("not-a-real-mode", project_mode="bypassPermissions") is False
+
+
+def test_permission_mode_none_is_always_allowed():
+    # None means "inherit / don't set" — never an escalation
+    assert is_permission_mode_allowed(None, project_mode="default") is True
+
+
+def test_from_markdown_tolerates_crlf_line_endings():
+    markdown = "---\r\nname: crlf-agent\r\ndescription: uses windows line endings\r\n---\r\n\r\nBody.\r\n"
+    parsed = SubagentSpec.from_markdown(markdown)
+    assert parsed.name == "crlf-agent"
+    assert parsed.description == "uses windows line endings"
 
 
 def test_task_spec_holds_raw_task_and_inferred_fields():

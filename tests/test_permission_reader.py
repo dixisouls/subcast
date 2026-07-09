@@ -5,6 +5,7 @@ Covers the fixtures the build spec calls for explicitly: empty settings,
 partial settings, and conflicting allow/deny entries.
 """
 
+import json
 import sys
 from pathlib import Path
 
@@ -12,6 +13,7 @@ from subcast.permission_reader import (
     BUILTIN_TOOLS,
     build_permission_context,
     discover_mcp_tools,
+    filter_approved_mcp_servers,
     parse_permissions,
     read_mcp_server_configs,
     read_settings,
@@ -139,6 +141,115 @@ def test_read_mcp_server_configs_parses_mcp_json(tmp_path):
 
 def test_read_mcp_server_configs_returns_empty_dict_when_file_missing(tmp_path):
     assert read_mcp_server_configs(tmp_path) == {}
+
+
+def test_read_mcp_server_configs_normalizes_array_form(tmp_path):
+    (tmp_path / ".mcp.json").write_text(
+        '{"mcpServers": [{"name": "fake", "command": "python3", "args": ["s.py"]}]}'
+    )
+
+    configs = read_mcp_server_configs(tmp_path)
+
+    assert configs == {"fake": {"command": "python3", "args": ["s.py"]}}
+
+
+def test_read_mcp_server_configs_tolerates_malformed_json(tmp_path):
+    (tmp_path / ".mcp.json").write_text("{ this is not valid json ")
+
+    assert read_mcp_server_configs(tmp_path) == {}
+
+
+def test_read_settings_tolerates_malformed_json(tmp_path):
+    claude_dir = tmp_path / ".claude"
+    claude_dir.mkdir()
+    (claude_dir / "settings.json").write_text("{ broken json ")
+
+    assert read_settings(tmp_path) == {}
+
+
+# --- MCP approval gating (SEC-3): only servers approved in the git-untracked
+# .claude/settings.local.json may be discovered, so a cloned repo's committed
+# config can't self-approve and trigger a spawn. ---
+
+SERVER_CONFIGS = {"fake": {"command": "python3", "args": ["s.py"]}}
+
+
+def _write_local_settings(tmp_path: Path, payload: dict):
+    claude_dir = tmp_path / ".claude"
+    claude_dir.mkdir(exist_ok=True)
+    (claude_dir / "settings.local.json").write_text(json.dumps(payload))
+
+
+def test_filter_approved_none_without_local_approval(tmp_path):
+    # No settings.local.json at all -> nothing approved.
+    assert filter_approved_mcp_servers(tmp_path, SERVER_CONFIGS) == {}
+
+
+def test_filter_approved_by_enabled_list(tmp_path):
+    _write_local_settings(tmp_path, {"enabledMcpjsonServers": ["fake"]})
+
+    assert filter_approved_mcp_servers(tmp_path, SERVER_CONFIGS) == SERVER_CONFIGS
+
+
+def test_filter_approved_by_enable_all(tmp_path):
+    _write_local_settings(tmp_path, {"enableAllProjectMcpServers": True})
+
+    assert filter_approved_mcp_servers(tmp_path, SERVER_CONFIGS) == SERVER_CONFIGS
+
+
+def test_filter_approved_disabled_overrides_enable_all(tmp_path):
+    _write_local_settings(
+        tmp_path,
+        {"enableAllProjectMcpServers": True, "disabledMcpjsonServers": ["fake"]},
+    )
+
+    assert filter_approved_mcp_servers(tmp_path, SERVER_CONFIGS) == {}
+
+
+def test_filter_approved_ignores_committed_settings_json(tmp_path):
+    # The security-critical case: approvals in the committed settings.json
+    # (which a cloned malicious repo could ship) must NOT count.
+    claude_dir = tmp_path / ".claude"
+    claude_dir.mkdir()
+    (claude_dir / "settings.json").write_text(
+        json.dumps({"enableAllProjectMcpServers": True})
+    )
+
+    assert filter_approved_mcp_servers(tmp_path, SERVER_CONFIGS) == {}
+
+
+def test_build_permission_context_does_not_discover_unapproved_mcp(tmp_path):
+    (tmp_path / ".mcp.json").write_text(
+        json.dumps(
+            {
+                "mcpServers": {
+                    "fake": {"command": sys.executable, "args": [str(FAKE_SERVER_SCRIPT)]}
+                }
+            }
+        )
+    )
+
+    context = build_permission_context(tmp_path)
+
+    # Real, reachable server, but never approved locally -> never spawned.
+    assert context.connected_mcp_tools == []
+
+
+def test_build_permission_context_discovers_approved_mcp(tmp_path):
+    (tmp_path / ".mcp.json").write_text(
+        json.dumps(
+            {
+                "mcpServers": {
+                    "fake": {"command": sys.executable, "args": [str(FAKE_SERVER_SCRIPT)]}
+                }
+            }
+        )
+    )
+    _write_local_settings(tmp_path, {"enabledMcpjsonServers": ["fake"]})
+
+    context = build_permission_context(tmp_path)
+
+    assert set(context.connected_mcp_tools) == {"mcp__fake__ping", "mcp__fake__echo"}
 
 
 def test_discover_mcp_tools_returns_prefixed_names_from_real_server():

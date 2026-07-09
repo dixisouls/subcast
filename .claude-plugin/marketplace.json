@@ -9,7 +9,7 @@
       "name": "subcast",
       "source": "./",
       "description": "Subagent casting: dynamically matches or generates project-scoped Claude Code subagents on demand, scoped within the project's existing permission boundaries.",
-      "version": "0.1.0",
+      "version": "1.1.0",
       "author": {
         "name": "Divya"
       },
