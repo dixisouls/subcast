@@ -66,8 +66,9 @@ allowed to touch.
 
 ## Status
 
-`v1.0.1` — full pipeline shipped, packaged as a real plugin, verified end
-to end against real projects.
+`v1.1.0` — full pipeline shipped, packaged as a real plugin, verified end
+to end against real projects. Adds agent list/prune with provenance
+tracking, and hardened permission handling.
 
 ## Requirements
 
